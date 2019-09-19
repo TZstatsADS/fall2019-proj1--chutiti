@@ -1,0 +1,119 @@
+---
+title: "ADS Proj 1"
+author: "Tiantian Chu"
+date: "9/17/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Load lyrics dataset and libraries
+```{r load,echo=FALSE,message=FALSE,warning=FALSE}
+load('~/Desktop/Columbia/ADS/Proj 1/data/lyrics.RData')
+dt_lyrics[1,]
+library(ggplot2)
+library(wordcloud2)
+```
+
+### See distribution of songs by genre, year
+```{r,echo=FALSE}
+#generate data frame for the frequency of genre, repeat for year
+df_genre = as.data.frame(table(dt_lyrics$genre))
+colnames(df_genre) = c("genre","Freq")
+#use barplot to show the distribution of songs
+ggplot(df_genre,aes(x = genre,y = Freq,fill = genre))+
+  geom_bar(stat = "identity")
+df_year = as.data.frame(table(dt_lyrics$year))
+colnames(df_year) = c("year","Freq")
+ggplot(df_year,aes(x = year,y = Freq))+
+  geom_bar(stat = "identity")+
+  theme(axis.text.x = element_text(angle = 50))
+```
+
+##### By observing these two plots we find some of the genre like rock and some of the years like 2006 have extremely large amount of data, comparing to the rest of their groups, while some genre and years have obviously too little data. This finding indicates that we should do some data cleaning process before analysis.
+
+### Write a function to calculate the average number of words per line for a song
+```{r,echo=FALSE}
+#function to calculate a song's average number of words in each line
+avg_word = function(x){
+  spt_line = unlist(strsplit(x,"\n"))
+  l = c()
+  for (i in spt_line){
+    len = length(unlist(strsplit(i," ")))
+    l = append(l,len)
+  }
+  m = mean(l)
+  m
+}
+```
+
+##### Note: the function "avg_word" can return an average number of words per line when inputting a song's data from the dataset.
+
+### Add a column that contains the average number of words into the dataset
+```{r,echo=FALSE}
+avg_wordnum = unlist(lapply(dt_lyrics$lyrics,avg_word))
+dt_lyrics = cbind(dt_lyrics,avg_wordnum)
+dt_lyrics[1,]
+```
+
+##### Now we can see the average number of words of a song is listed behind them in the dataset,which is more convenient for us to analyze. 
+
+### Clean the dataset to prepare for analysis
+```{r,echo=FALSE}
+#remove extreme values
+dt_lyrics2 = dt_lyrics[(dt_lyrics$avg_wordnum>1)&(dt_lyrics$avg_wordnum<=20),]
+#drop the years with too little songs
+quantile(table(dt_lyrics2$year),(1:10)/10)
+df_year2 = as.data.frame(table(dt_lyrics2$year))
+effect_year = df_year2[df_year2$Freq>137,1]
+dt_lyrics2 = dt_lyrics2[dt_lyrics2$year %in% effect_year,]
+#drop the genre of other and not available which are meaningless for analysis
+dt_lyrics2 = dt_lyrics2[(dt_lyrics2$genre != "Other")&(dt_lyrics2$genre!="Not Available"),]
+```
+
+##### After cleaning, the dataset only contains genre and year with enough data.
+
+### Find the relationship between genre and average words per line
+```{r,echo=FALSE}
+avg_genre = as.data.frame(aggregate(dt_lyrics2$avg_wordnum, list(dt_lyrics2$genre),FUN = mean))
+colnames(avg_genre) = c("genre","words_per_line")
+ggplot(avg_genre,aes(x = genre,y = words_per_line ,fill = genre))+
+  geom_bar(stat = "identity")
+ggplot(dt_lyrics2,aes(x = genre,y = avg_wordnum ,fill = genre))+
+  geom_boxplot()
+```
+
+##### From the barplot we find there is clearly a relationship between genre and average lyric length. Country music that has almost 8 words per line is the highest -- 2 more of that for Electronic musics. From the boxplot we can see similar trend while observing genre like Rock and Metal may contains a large number of outliers for the distribution of average number per line.
+
+### Find the relationship between year and average words per line
+```{r,echo=FALSE}
+avg_year = as.data.frame(aggregate(dt_lyrics2$avg_wordnum, list(dt_lyrics2$year),FUN = mean))
+colnames(avg_year) = c("year","words_per_line")
+ggplot(avg_year,aes(x = year,y = words_per_line))+
+  geom_bar(stat = "identity")+
+  theme(axis.text.x = element_text(angle = 50))+
+  geom_line(colour = "blue")+
+  geom_point(colour = "blue")
+```
+
+##### From the barplot and the line segments drawn, we found there is not a very clear trend throughout years. The average words per line is waving around a certain level but in the most recent 9 years, the number keeps on a relatively low value with a slightly decreasing trend. This is probably because people favor songs with faster rhythm more these days so the mean sentence length reflected as average number per line went lower than before.
+
+### Create wordcloud for artist with most "long sentence" songs
+```{r,echo=FALSE}
+dt_lyrics3 = dt_lyrics2[dt_lyrics2$avg_wordnum>10,]
+df_artist = as.data.frame(sort(table(dt_lyrics3$artist),decreasing = T)[1:20])
+artist_cloud = wordcloud2(df_artist,size = 0.5,shape = "cardioid")
+artist_cloud
+```
+
+### Create wordcloud for artist with most "short sentence" songs
+```{r,echo=FALSE}
+dt_lyrics4 = dt_lyrics2[dt_lyrics2$avg_wordnum<4,]
+df_artist2 = as.data.frame(sort(table(dt_lyrics4$artist),decreasing = T)[1:20])
+artist_cloud2 = wordcloud2(df_artist2,size = 0.3,shape = "cardioid")
+artist_cloud2
+```
